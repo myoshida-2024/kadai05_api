@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather </title>
+    <link rel="stylesheet" href="css/style.css" />
+    <style>
+        #view{
+            padding: 5px;
+            border: 4px solid #6f28bb;
+            width: 30%;
+            background-color: aliceblue;
+            height:60px;
+            overflow: auto;
+        }
+        img{
+            width:50px;
+        }
+        #view>div{
+            border-bottom: 1px dotted #3838ab;
+            font-size:medium;
+        }
+        .bold{
+            font-weight: bold;
+        }
+        h2{
+            font-size:x-large;
+            color:#f1071e;
+        }
+        .assistant-message {
+        color: blue;
+        width: 300px; /* 幅を指定 */
+        /* display: inline-block; 幅が適用されるようにインラインブロックに設定 */
+        /* word-wrap: break-word; 必要に応じて単語の途中でも折り返し */
+    }
+    </style>
+</head>
+<body>
+    <div text-align: left;>
+        <h5>
+           <span id="area"></span> いまの天気
+        </h5>
+        <div id="view"></div>
+    </div>
+
+    <form id="chat-form" autocomplete="off">
+      <input type="text" id="chat-input" 
+      style="margin-top: 10px; width: 400px; height: 100px; border-color:#e22407e7; border-width: 5px;" 
+      placeholder="どんな献立を相談しますか。入力してEnterで送信" />
+      <div id="chat-window" >
+        <pre id="chat-history"></pre>
+      </div>
+    </form>
+    
+  </body>
+  
+  </html>
+  <script>
+    const chatWindow = document.getElementById('chat-window');
+    function scrollChatWindow() {
+      const chatWindowHeight = chatWindow.clientHeight;
+      const chatWindowScrollHeight = chatWindow.scrollHeight;
+      const chatWindowTextHeight = chatWindowScrollHeight - chatWindow.scrollTop;
+      if (chatWindowTextHeight > chatWindowHeight) {
+        chatWindow.scrollTop = chatWindowScrollHeight;
+      }
+    }
+  
+    // MutationObserverでDOMの変化を監視
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (mutation.type === 'childList') {
+        scrollChatWindow(); // DOMに新しい要素が追加されたらスクロール
+      }
+    });
+  });
+  
+  // 監視する対象とオプションの設定
+  observer.observe(chatWindow, { childList: true, subtree: true });
+  
+  </script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+  <script>
+    let messageHistory = [];
+    async function appendAssistantResponse(assistantMessage) {
+    messageHistory.push({ 'role': 'assistant', 'content': assistantMessage });
+  }
+    $(document).ready(function(){
+    
+      //＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+      //MAP表示処理
+      //＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+      const key   = "**********";  //***自分のKEYを！！！！！！！！！！！！！！！***
+      const lat   = "35.713456";   //原宿の緯度
+      const lon   = "139.663682";  //原宿の軽度
+      const icon  = "http://openweathermap.org/img/wn/"; //ICONにアクセスするURL
+
+      //グローバス変数として宣言
+      window.temp = null;
+      window.humidity = null;
+
+
+      //＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+      //OpenWeatherAPI（天気情報を取得）5DAY/3hour
+      //＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝＝
+      // const url = 'https://api.openweathermap.org/data/2.5/forecast?lat='+lat+'&lon='+lon+'&appid='+key+'&lang=ja';
+      const url = 'https://api.openweathermap.org/data/2.5/weather?lat='+lat+'&lon='+lon+'&appid='+key+'&lang=ja';
+      $.ajax({
+          url:url,
+          type:'get',
+          cache:false,
+          dataType:'json'
+
+
+      }).done(function(data){
+          // console.log(data.list[0].dt_txt); //オブジェクト変数を確認
+          console.log(data); //オブジェクト変数を確認
+         // 気温と湿度の表示
+        window.temp = (data.main.temp - 273.15).toFixed(1); // ケルビンから摂氏に変換
+        window.humidity = data.main.humidity;                     
+          const html= `
+              <div>
+                  <div>気温：${window.temp}℃</div>
+                  <div>湿度：${window.humidity}%</div>                  
+              </div>    
+          `;
+      // 作成したhtml埋め込む
+          $("#view").append(html);
+      }).fail(function (jqXHR, textStatus, errorThrown) {
+          console.error('AJAXリクエストエラー:', textStatus, errorThrown);
+
+          //フォーム送信時に取得したデータを使ってchatGPTに問い合わせ
+      });
+  
+    $('#chat-form').on('submit', async function (event) {
+      event.preventDefault();
+  
+      //入力メッセージに気温と湿度を組み合わせる
+      const userInput = $('#chat-input').val();
+      const userMessage = `気温は ${window.temp}℃,湿度は ${window.humidity}%。この気温と湿度に合わせて${userInput}`;
+      //メッセージを画面に表示
+      $('#chat-history').append('<p class="you">' + userMessage + '</p>');
+      messageHistory.push({ 'role': 'user', 'content': userMessage });
+  
+      const url = 'https://api.openai.com/v1/chat/completions';   
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer **********',
+        },
+        body: JSON.stringify({
+          'model': 'gpt-3.5-turbo',
+          'stream': true,
+          'messages': messageHistory,
+        }),
+      });
+  
+      if (!response.ok) {
+        console.error('Error:', await response.text());
+        return;
+      }
+       else {
+      console.log("レスポンス成功:", response);
+      }
+  
+      $("#chat-input").val("");
+      $("#chat-input").focus();
+  
+      const reader = response.body.getReader();
+      const textDecoder = new TextDecoder();
+      let buffer = '';
+  
+      while (true) {
+        const { value, done } = await reader.read();
+  
+        if (done) {
+          console.log("ストリーム終了");
+          break;
+        }
+  
+        buffer += textDecoder.decode(value, { stream: true });
+        console.log("現在のバッファ:", buffer);
+  
+        while (true) {
+          const newlineIndex = buffer.indexOf('\n');
+          if (newlineIndex === -1) {
+            break;
+          }
+  
+          const line = buffer.slice(0, newlineIndex);
+          buffer = buffer.slice(newlineIndex + 1);
+  
+          if (line.startsWith('data:')) {
+              console.log("現在の行:", line);
+  
+            if (line.includes('[DONE]')) {
+              $('#chat-history').append('<hr>');
+              $('#chat-history').append('<br>');
+              console.log("レスポンスが完了しました");
+              return;
+            }
+  
+            const jsonData = JSON.parse(line.slice(5));
+            console.log("JSONデータ:", jsonData);
+  
+            if (jsonData.choices && jsonData.choices[0].delta && jsonData.choices[0].delta.content) {
+              const assistantMessage = jsonData.choices[0].delta.content;
+              // $('#chat-history').append('' + assistantMessage + '');
+              // $('#chat-history').append('<span class="assistant-message">'
+                //  + assistantMessage + '</span>');
+                // 
+            
+              $('#chat-history').append('<span class="assistant-message">' + assistantMessage + '</span>');
+
+
+              // await appendAssistantResponse(assistantMessage);
+              console.log("アシスタントのメッセージ:", assistantMessage);
+            }
+          }
+        }
+      }
+    });
+  });
+  </script>
+  
+</html>
